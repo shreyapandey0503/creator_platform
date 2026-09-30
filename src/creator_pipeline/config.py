@@ -19,6 +19,9 @@ DB_PATH = ROOT / os.getenv("DB_PATH", "data/creators.db")
 # SaaS: platform data (users, companies, campaigns, invoices) + one private creator DB per company
 PLATFORM_DB_PATH = ROOT / os.getenv("PLATFORM_DB_PATH", "data/platform.db")
 ORGS_DIR = ROOT / os.getenv("ORGS_DIR", "data/orgs")
+# Postgres (e.g. Supabase transaction pooler URL). When set, the web app stores everything there instead of
+# the SQLite files above: platform data in schema "platform", each company's creators in schema "org_<id>".
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 FEE_PER_CREATOR = int(os.getenv("FEE_PER_CREATOR_INR", "499") or 499)
 GST_RATE = float(os.getenv("GST_RATE", "0.18") or 0.18)
 

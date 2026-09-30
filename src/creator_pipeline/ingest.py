@@ -47,19 +47,23 @@ def ingest_bytes(conn, data: bytes, file_name: str, platform_hint: str | None = 
     columns = [c for c in (reader.fieldnames or [])]
     rows = list(reader)
 
-    if stored_path is None:
+    if stored_path is None and getattr(conn, "is_postgres", False):
+        # no persistent disk on serverless hosts: keep the untouched copy in the company's own schema
+        conn.execute("INSERT INTO upload_files (file_sha256, file_name, data, stored_at) VALUES (?,?,?,?)"
+                     " ON CONFLICT DO NOTHING", (sha, Path(file_name).name, data, now_iso()))
+        stored_path = f"db:upload_files/{sha}"
+    elif stored_path is None:
         upload_dir = upload_dir or UPLOADS_DIR
         upload_dir.mkdir(parents=True, exist_ok=True)
         dest = upload_dir / f"{sha[:10]}_{Path(file_name).name}"
         dest.write_bytes(data)
         stored_path = str(dest)
 
-    cur = conn.execute(
+    batch_id = conn.execute(
         "INSERT INTO import_batches (file_name, stored_path, file_sha256, platform_hint, row_count, columns_json, ingested_at)"
-        " VALUES (?,?,?,?,?,?,?)",
+        " VALUES (?,?,?,?,?,?,?) RETURNING batch_id",
         (Path(file_name).name, stored_path, sha, platform_hint, len(rows), dumps(columns), now_iso()),
-    )
-    batch_id = cur.lastrowid
+    ).fetchone()[0]
     conn.executemany(
         "INSERT INTO staging_rows (batch_id, row_number, raw_json) VALUES (?,?,?)",
         [(batch_id, i + 1, dumps({k: v for k, v in r.items() if k is not None})) for i, r in enumerate(rows)],
@@ -75,7 +79,8 @@ def ingest_file(conn, path: Path, platform_hint: str | None = None) -> dict:
 
 def ingest_upload(conn, data: bytes, file_name: str, platform_hint: str | None = None,
                   upload_dir: Path | None = None) -> dict:
-    """Ingest an uploaded file; an untouched copy is kept in upload_dir (default data/uploads/)."""
+    """Ingest an uploaded file; an untouched copy is kept in upload_dir (default data/uploads/),
+    or in the upload_files table on Postgres."""
     return ingest_bytes(conn, data, file_name, platform_hint, upload_dir=upload_dir)
 
 

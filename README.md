@@ -90,12 +90,23 @@ creator_platform/
 ## Setup (Windows, PowerShell)
 
 ```powershell
-cd C:\Users\Admin\Documents\Shreya\creator_platform
-.\.venv\Scripts\Activate.ps1          # venv already created (Python 3.13)
-pip install -r requirements.txt       # already installed
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt   # web app + Streamlit, tests (requirements.txt = web app only)
 ```
 
 (Git Bash: `source .venv/Scripts/activate`.)
+
+## Deploying the web app (Vercel + Supabase)
+
+Vercel has no persistent disk, so the web app stores its data in Postgres when `DATABASE_URL` is set:
+platform data in schema `platform`, each company's creators in its own schema `org_<id>`
+(tables are created automatically on first use). Without `DATABASE_URL` it uses the SQLite files in `data/`.
+
+1. Supabase -> Project -> **Connect** -> **Transaction pooler**: copy the connection string.
+2. Vercel -> Project -> Settings -> **Environment Variables**: add `DATABASE_URL` = that string.
+3. Vercel -> Settings -> Functions: set the region closest to the Supabase project (each import makes many queries).
+4. Push to `main`. Vercel's entrypoint is `index.py` (re-exports `web.server:app`).
 
 ## Run
 

@@ -78,9 +78,9 @@ def _creator_row(p: dict, now: str, campaign_id: int) -> tuple:
             dumps(p.get("reasons") or []), p.get("cost"), None, "shortlisted", now, now)
 
 
-INSERT_CC = """INSERT OR IGNORE INTO campaign_creators (campaign_id, creator_id, name, handle, platform, profile_url, city,
+INSERT_CC = """INSERT INTO campaign_creators (campaign_id, creator_id, name, handle, platform, profile_url, city,
     niche, followers, er, est_views, fit, reasons_json, quoted_fee, agreed_fee, status, added_at, updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING"""
 
 
 # ------------------------------------------------------------------ campaigns
@@ -108,10 +108,10 @@ def create_campaign(req: CampaignIn, ctx: Ctx = Depends(require)):
     with db() as conn:
         cid = conn.execute(
             "INSERT INTO campaigns (org_id, name, brand, product, objective, deliverable, budget, brief_json, scope_json,"
-            " status, start_date, end_date, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " status, start_date, end_date, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
             (ctx.org_id, req.name.strip(), b.get("brand"), b.get("product"), b.get("objective"), b.get("deliverable"),
              b.get("budget"), dumps(b), dumps(req.batches), "draft", req.start_date, req.end_date, ctx.user_id, now),
-        ).lastrowid
+        ).fetchone()[0]
         conn.executemany(INSERT_CC, [_creator_row(p, now, cid) for p in req.creators])
         log(conn, ctx.org_id, f"{ctx.name} created campaign “{req.name.strip()}” with {len(req.creators)} shortlisted creators",
             ctx.user_id, cid)
@@ -122,7 +122,8 @@ def create_campaign(req: CampaignIn, ctx: Ctx = Depends(require)):
 def get_campaign(campaign_id: int, ctx: Ctx = Depends(require)):
     with db() as conn:
         c = _campaign(conn, ctx, campaign_id)
-        creators = rows(conn.execute("SELECT * FROM campaign_creators WHERE campaign_id = ? ORDER BY fit DESC", (campaign_id,)))
+        creators = rows(conn.execute("SELECT * FROM campaign_creators WHERE campaign_id = ? ORDER BY fit DESC NULLS LAST, id",
+                                     (campaign_id,)))
         latest = _latest_metrics(conn, [x["id"] for x in creators])
         for x in creators:
             x["metrics"] = latest.get(x["id"])
@@ -218,9 +219,7 @@ def add_creators(campaign_id: int, req: AddCreators, ctx: Ctx = Depends(require)
         if c["status"] in ("completed", "cancelled"):
             raise HTTPException(400, f"Campaign is {c['status']}")
         now = now_iso()
-        before = conn.total_changes
-        conn.executemany(INSERT_CC, [_creator_row(p, now, campaign_id) for p in req.creators])
-        added = conn.total_changes - before
+        added = max(0, conn.executemany(INSERT_CC, [_creator_row(p, now, campaign_id) for p in req.creators]).rowcount)
         if added:
             log(conn, ctx.org_id, f"{ctx.name} added {added} creator(s): {', '.join(p.get('name') or '' for p in req.creators[:4])}",
                 ctx.user_id, campaign_id)
@@ -325,7 +324,7 @@ def fetch_metrics(cc_id: int, ctx: Ctx = Depends(require)):
 def metrics_history(cc_id: int, ctx: Ctx = Depends(require)):
     with db() as conn:
         _cc(conn, ctx, cc_id)
-        return rows(conn.execute("SELECT * FROM post_metrics WHERE cc_id = ? ORDER BY recorded_at", (cc_id,)))
+        return rows(conn.execute("SELECT * FROM post_metrics WHERE cc_id = ? ORDER BY recorded_at, id", (cc_id,)))
 
 
 # ------------------------------------------------------------------ dashboard

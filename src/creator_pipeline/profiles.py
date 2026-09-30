@@ -15,19 +15,32 @@ def _first(s: pd.Series):
     return s.iloc[0] if len(s) else None
 
 
+def _frame(conn, sql: str, params=()) -> pd.DataFrame:
+    """pd.read_sql_query for either backend (pandas only accepts sqlite3 or SQLAlchemy connections)."""
+    cur = conn.execute(sql, params)
+    cols = [d[0] for d in cur.description]
+    data = [tuple(r[i] for i in range(len(cols))) for r in cur.fetchall()]
+    return pd.DataFrame.from_records(data, columns=cols, coerce_float=True)
+
+
 def build(conn, batch_ids: list[int] | None = None) -> pd.DataFrame:
     """Creator-level table. With batch_ids, only creators that appear in those import batches."""
-    acc = pd.read_sql_query("""
+    # Explicit order (first appearance in the uploads): ties in the follower sort below decide each creator's
+    # primary account, and the row order feeds k-means, so it must not depend on the database engine.
+    acc = _frame(conn, """
         SELECT a.*, ca.creator_id, c.display_name, c.entity_type AS creator_entity, c.n_accounts,
                c.total_followers
-        FROM accounts a JOIN creator_accounts ca USING (account_id) JOIN creators c USING (creator_id)""", conn)
+        FROM accounts a JOIN creator_accounts ca USING (account_id) JOIN creators c USING (creator_id)
+        LEFT JOIN (SELECT account_id, MIN(row_id) AS first_row FROM account_sources GROUP BY account_id) f
+               USING (account_id)
+        ORDER BY COALESCE(f.first_row, 0), a.account_id""")
     if acc.empty:
         return pd.DataFrame()
     if batch_ids:
         marks = ",".join("?" * len(batch_ids))
-        in_scope = pd.read_sql_query(
-            f"SELECT DISTINCT x.account_id FROM account_sources x JOIN staging_rows s USING (row_id)"
-            f" WHERE s.batch_id IN ({marks})", conn, params=list(batch_ids))
+        in_scope = _frame(
+            conn, f"SELECT DISTINCT x.account_id FROM account_sources x JOIN staging_rows s USING (row_id)"
+                  f" WHERE s.batch_id IN ({marks})", list(batch_ids))
         keep = set(acc[acc.account_id.isin(in_scope.account_id)].creator_id)
         acc = acc[acc.creator_id.isin(keep)]
     for col, src in (("categories", "categories_json"), ("tags", "tags_json"), ("languages", "languages_json"),

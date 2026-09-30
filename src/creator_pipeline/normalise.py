@@ -254,8 +254,8 @@ def _carry_decisions(conn, renames: dict[str, str]):
             a, b = sorted(new if x == old else x for x in (r["account_a"], r["account_b"]))
             conn.execute("DELETE FROM dedupe_candidates WHERE pair_id = ?", (r["pair_id"],))
             conn.execute(
-                "INSERT OR IGNORE INTO dedupe_candidates (pair_id, account_a, account_b, kind, score, reasons_json,"
-                " status, decided_by, decided_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO dedupe_candidates (pair_id, account_a, account_b, kind, score, reasons_json,"
+                " status, decided_by, decided_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING",
                 (f"{a}|{b}", a, b, r["kind"], r["score"], r["reasons_json"], r["status"], r["decided_by"],
                  r["decided_at"], r["created_at"]))
 
@@ -372,6 +372,7 @@ def apply_enrichment(conn):
                c.topic_categories_json, c.country AS yt_country, c.custom_url
         FROM accounts a JOIN youtube_channels c ON c.channel_id = a.channel_id
     """).fetchall()
+    updates = []
     for r in rows:
         cats = loads(r["categories_json"])
         flags = loads(r["flags_json"])
@@ -381,7 +382,8 @@ def apply_enrichment(conn):
             cats += new
             flags.append("categories_added_from_youtube")
         handle = r["handle"] or ((r["custom_url"] or "").lstrip("@").lower() or None)
-        conn.execute(
-            "UPDATE accounts SET categories_json=?, flags_json=?, country=COALESCE(country, ?), handle=?,"
-            " handle_core=? WHERE account_id=?",
-            (dumps(cats), dumps(sorted(set(flags))), r["yt_country"], handle, P.handle_core(handle), r["account_id"]))
+        updates.append((dumps(cats), dumps(sorted(set(flags))), r["yt_country"], handle, P.handle_core(handle),
+                        r["account_id"]))
+    conn.executemany(
+        "UPDATE accounts SET categories_json=?, flags_json=?, country=COALESCE(country, ?), handle=?,"
+        " handle_core=? WHERE account_id=?", updates)

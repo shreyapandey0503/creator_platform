@@ -1,7 +1,8 @@
 """Platform database: accounts, companies, sessions, campaigns, tracking, billing.
 
-Creator data is NOT here - each company gets its own private creator DB (data/orgs/org_<id>/creators.db),
-so one client's rate cards and notes can never leak into another client's workspace.
+Creator data is NOT here - each company gets its own private creator DB (data/orgs/org_<id>/creators.db,
+or Postgres schema org_<id> when DATABASE_URL is set), so one client's rate cards and notes can never leak
+into another client's workspace.
 """
 from __future__ import annotations
 
@@ -10,7 +11,8 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
-from creator_pipeline.config import ORGS_DIR, PLATFORM_DB_PATH
+from creator_pipeline import db as creator_db, postgres
+from creator_pipeline.config import DATABASE_URL, ORGS_DIR, PLATFORM_DB_PATH
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -149,7 +151,9 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def connect() -> sqlite3.Connection:
+def connect():
+    if DATABASE_URL:
+        return postgres.connect(DATABASE_URL, "platform", SCHEMA)
     PLATFORM_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(PLATFORM_DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -170,6 +174,13 @@ def db():
 
 def org_db_path(org_id: int):
     return ORGS_DIR / f"org_{int(org_id)}" / "creators.db"
+
+
+def org_connect(org_id: int):
+    """The company's private creator database: its own SQLite file, or its own Postgres schema."""
+    if DATABASE_URL:
+        return creator_db.connect(schema=f"org_{int(org_id)}")
+    return creator_db.connect(org_db_path(org_id))
 
 
 def org_upload_dir(org_id: int):

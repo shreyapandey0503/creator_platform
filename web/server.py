@@ -8,6 +8,7 @@ Pages:  /            marketing site          /login, /signup    accounts
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -25,7 +26,12 @@ import billing_api  # noqa: E402
 import campaigns_api  # noqa: E402
 import creators_api  # noqa: E402
 import settings_api  # noqa: E402
+from creator_pipeline.config import DATABASE_URL  # noqa: E402
 from platform_db import connect  # noqa: E402
+
+if os.getenv("VERCEL") and not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is not set. Vercel has no writable disk for the SQLite files - add your Supabase "
+                       "connection string under Project Settings -> Environment Variables and redeploy.")
 
 STATIC = WEB / "static"
 WALLPAPERS = STATIC / "wallpapers"
@@ -34,7 +40,7 @@ app = FastAPI(title="Creator Atlas", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 for r in (auth.router, creators_api.router, campaigns_api.router, billing_api.router, settings_api.router):
     app.include_router(r)
-connect().close()  # create the platform DB on startup
+connect().close()  # create the platform DB (or Postgres schema) on startup
 
 
 @app.get("/", include_in_schema=False)

@@ -54,11 +54,11 @@ def bill_campaign(conn, campaign: dict, user_id: int | None = None) -> dict | No
     number = _next_number(conn, campaign["org_id"])
     inv_id = conn.execute(
         "INSERT INTO invoices (org_id, campaign_id, number, status, issued_at, due_at, subtotal, tax_rate, tax, total,"
-        " bill_to_json) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        " bill_to_json) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
         (campaign["org_id"], campaign["id"], number, "issued", now.isoformat(),
          (now + timedelta(days=DUE_DAYS)).isoformat(), subtotal, GST_RATE, tax, total,
          dumps({"name": org["name"], "email": org["billing_email"], "gstin": org["gstin"], "address": org["address"]})),
-    ).lastrowid
+    ).fetchone()[0]
     conn.execute(
         "INSERT INTO invoice_lines (invoice_id, description, qty, unit_price, amount, detail_json) VALUES (?,?,?,?,?,?)",
         (inv_id, f"Platform service fee — {campaign['name']} ({len(todo)} confirmed creator{'s' if len(todo) != 1 else ''})",
@@ -77,8 +77,8 @@ def _invoice(conn, org_id: int, invoice_id: int) -> dict:
     out = dict(inv)
     out["bill_to"] = loads(out.pop("bill_to_json"), {})
     out["lines"] = [dict(l, detail=loads(l["detail_json"], [])) for l in
-                    rows(conn.execute("SELECT * FROM invoice_lines WHERE invoice_id = ?", (invoice_id,)))]
-    out["payments"] = rows(conn.execute("SELECT * FROM payments WHERE invoice_id = ?", (invoice_id,)))
+                    rows(conn.execute("SELECT * FROM invoice_lines WHERE invoice_id = ? ORDER BY id", (invoice_id,)))]
+    out["payments"] = rows(conn.execute("SELECT * FROM payments WHERE invoice_id = ? ORDER BY id", (invoice_id,)))
     return out
 
 

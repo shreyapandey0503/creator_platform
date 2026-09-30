@@ -123,10 +123,10 @@ def signup(req: SignupReq, response: Response):
             raise HTTPException(409, "An account with this email already exists - log in instead")
         h, salt = hash_password(req.password)
         ts = now_iso()
-        uid = conn.execute("INSERT INTO users (email, name, pw_hash, pw_salt, created_at, last_login) VALUES (?,?,?,?,?,?)",
-                           (email, req.name.strip(), h, salt, ts, ts)).lastrowid
-        oid = conn.execute("INSERT INTO orgs (name, industry, size, billing_email, created_at) VALUES (?,?,?,?,?)",
-                           (req.company.strip(), req.industry, req.company_size, email, ts)).lastrowid
+        uid = conn.execute("INSERT INTO users (email, name, pw_hash, pw_salt, created_at, last_login) VALUES (?,?,?,?,?,?)"
+                           " RETURNING id", (email, req.name.strip(), h, salt, ts, ts)).fetchone()[0]
+        oid = conn.execute("INSERT INTO orgs (name, industry, size, billing_email, created_at) VALUES (?,?,?,?,?)"
+                           " RETURNING id", (req.company.strip(), req.industry, req.company_size, email, ts)).fetchone()[0]
         conn.execute("INSERT INTO memberships (user_id, org_id, role, job_title) VALUES (?,?,?,?)",
                      (uid, oid, "owner", req.job_title.strip()))
         log(conn, oid, f"{req.name.strip()} created the {req.company.strip()} workspace", uid)

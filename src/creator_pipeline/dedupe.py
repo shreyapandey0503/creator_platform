@@ -136,6 +136,7 @@ def find_candidates(conn) -> dict:
 
     ts = now_iso()
     counts = defaultdict(int)
+    updates, inserts = [], []
     for a_id, b_id in pairs:
         res = score_pair(by_id[a_id], by_id[b_id])
         if not res:
@@ -144,17 +145,17 @@ def find_candidates(conn) -> dict:
         pair_id = f"{a_id}|{b_id}"
         auto = kind in ("ig_threads_same_handle", "cross_platform_exact_handle_and_name")
         if pair_id in decided:
-            conn.execute("UPDATE dedupe_candidates SET score=?, kind=?, reasons_json=? WHERE pair_id=?",
-                         (score, kind, dumps(reasons), pair_id))
+            updates.append((score, kind, dumps(reasons), pair_id))
             counts[decided[pair_id]["status"]] += 1
             continue
         status = "auto_linked" if auto else "pending"
-        conn.execute(
-            "INSERT INTO dedupe_candidates (pair_id, account_a, account_b, kind, score, reasons_json, status,"
-            " decided_by, decided_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (pair_id, a_id, b_id, kind, score, dumps(reasons), status,
-             "rule" if auto else None, ts if auto else None, ts))
+        inserts.append((pair_id, a_id, b_id, kind, score, dumps(reasons), status,
+                        "rule" if auto else None, ts if auto else None, ts))
         counts[status] += 1
+    conn.executemany("UPDATE dedupe_candidates SET score=?, kind=?, reasons_json=? WHERE pair_id=?", updates)
+    conn.executemany(
+        "INSERT INTO dedupe_candidates (pair_id, account_a, account_b, kind, score, reasons_json, status,"
+        " decided_by, decided_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)", inserts)
     counts["pairs_compared"] = len(pairs)
     return dict(counts)
 
@@ -190,6 +191,7 @@ def build_creators(conn) -> dict:
     conn.execute("DELETE FROM creators")
     conn.execute("DELETE FROM creator_accounts")
     ts = now_iso()
+    creator_rows, link_rows = [], []
     for members in groups.values():
         members.sort(key=lambda m: (-(m["followers"] or 0), m["account_id"]))
         primary = members[0]
@@ -200,13 +202,13 @@ def build_creators(conn) -> dict:
         cid = "cr_" + hashlib.sha1(min(m["account_id"] for m in members).encode()).hexdigest()[:10]
         cats = list(dict.fromkeys(c for m in members for c in m["categories"]))
         entity = "brand_media" if any(m["entity_type"] == "brand_media" for m in members) else "person"
-        conn.execute(
-            "INSERT INTO creators (creator_id, display_name, entity_type, primary_account_id, platforms_json,"
-            " n_accounts, total_followers, categories_json, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
-            (cid, name, entity, primary["account_id"], dumps(sorted({m["platform"] for m in members})),
-             len(members), sum(m["followers"] or 0 for m in members), dumps(cats), ts))
-        conn.executemany("INSERT INTO creator_accounts (creator_id, account_id) VALUES (?,?)",
-                         [(cid, m["account_id"]) for m in members])
+        creator_rows.append((cid, name, entity, primary["account_id"], dumps(sorted({m["platform"] for m in members})),
+                             len(members), sum(m["followers"] or 0 for m in members), dumps(cats), ts))
+        link_rows += [(cid, m["account_id"]) for m in members]
+    conn.executemany(
+        "INSERT INTO creators (creator_id, display_name, entity_type, primary_account_id, platforms_json,"
+        " n_accounts, total_followers, categories_json, updated_at) VALUES (?,?,?,?,?,?,?,?,?)", creator_rows)
+    conn.executemany("INSERT INTO creator_accounts (creator_id, account_id) VALUES (?,?)", link_rows)
     multi = sum(1 for g in groups.values() if len(g) > 1)
     return {"creators": len(groups), "multi_platform_creators": multi}
 

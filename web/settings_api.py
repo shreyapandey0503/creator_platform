@@ -99,8 +99,8 @@ def invite(req: InviteIn, ctx: Ctx = Depends(require_admin)):
                 raise HTTPException(409, "Already a member")
             raise HTTPException(409, "This email already has an account with another company")
         h, salt = hash_password(temp)
-        uid = conn.execute("INSERT INTO users (email, name, pw_hash, pw_salt, created_at) VALUES (?,?,?,?,?)",
-                           (email, req.name.strip(), h, salt, now_iso())).lastrowid
+        uid = conn.execute("INSERT INTO users (email, name, pw_hash, pw_salt, created_at) VALUES (?,?,?,?,?) RETURNING id",
+                           (email, req.name.strip(), h, salt, now_iso())).fetchone()[0]
         conn.execute("INSERT INTO memberships (user_id, org_id, role, job_title) VALUES (?,?,?,?)",
                      (uid, ctx.org_id, req.role, req.job_title.strip()))
         log(conn, ctx.org_id, f"{ctx.name} added {req.name.strip()} to the team", ctx.user_id)

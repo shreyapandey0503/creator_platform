@@ -14,12 +14,12 @@ from pydantic import BaseModel, Field
 from auth import Ctx, require
 from creator_pipeline import dedupe, matching, normalise, profiles, segments
 from creator_pipeline.config import DATA_DIR
-from creator_pipeline.db import connect, loads
+from creator_pipeline.db import loads
 from creator_pipeline.ingest import ingest_file, ingest_upload
 from creator_pipeline.labels import FLAG_HELP
 from creator_pipeline.normalise import map_columns
 from creator_pipeline.taxonomy import AGE_BANDS, BUDGET_TIERS, SIZE_TIERS
-from platform_db import db, log, org_db_path, org_upload_dir
+from platform_db import db, log, org_connect, org_db_path, org_upload_dir
 
 router = APIRouter(prefix="/api")
 SAMPLE = DATA_DIR / "samples" / "SAMPLE_fictional_creators_india.csv"
@@ -54,23 +54,32 @@ def clean(o):
 
 
 def org_conn(org_id: int):
-    return connect(org_db_path(org_id))
+    return org_connect(org_id)
 
 
 def _lock(org_id: int) -> threading.Lock:
     return _locks.setdefault(org_id, threading.Lock())
 
 
+def _db_state(conn, org_id: int):
+    """Changes whenever the company's creator table is rebuilt (every import re-runs normalise + dedupe)."""
+    if getattr(conn, "is_postgres", False):
+        r = conn.execute("SELECT (SELECT MAX(batch_id) FROM import_batches) AS b,"
+                         " (SELECT MAX(updated_at) FROM creators) AS u").fetchone()
+        return (r["b"], r["u"])
+    path = org_db_path(org_id)
+    return path.stat().st_mtime if path.exists() else 0
+
+
 def scope_df(org_id: int, batches: list[int] | None = None):
     """Creator table (+ smart segments) for a company, optionally limited to some imports. Cached per DB state."""
-    path = org_db_path(org_id)
-    key = (org_id, tuple(sorted(batches or [])), path.stat().st_mtime if path.exists() else 0)
+    conn = org_conn(org_id)
+    try:
+        key = (org_id, tuple(sorted(batches or [])), _db_state(conn, org_id))
+        df = None if key in _cache else profiles.build(conn, batches or None)
+    finally:
+        conn.close()
     if key not in _cache:
-        conn = org_conn(org_id)
-        try:
-            df = profiles.build(conn, batches or None)
-        finally:
-            conn.close()
         segs = []
         if not df.empty:
             seg, segs = segments.compute(df)
@@ -131,10 +140,12 @@ def _niche_tiles(df):
 def batch_report(conn, batch_id: int) -> dict:
     b = conn.execute("SELECT * FROM import_batches WHERE batch_id = ?", (batch_id,)).fetchone()
     q = lambda sql: conn.execute(sql, (batch_id,)).fetchall()  # noqa: E731
-    rej = q("""SELECT i.issue, COUNT(*) n FROM row_issues i JOIN staging_rows s USING (row_id)
-               WHERE s.batch_id = ? AND i.severity = 'rejected' GROUP BY i.issue""")
-    warn = q("""SELECT i.issue, COUNT(*) n FROM row_issues i JOIN staging_rows s USING (row_id)
-                WHERE s.batch_id = ? AND i.severity = 'warning' GROUP BY i.issue ORDER BY n DESC""")
+    # sorted here, not in SQL: Postgres orders text by locale rules, SQLite byte by byte
+    rej = sorted(q("""SELECT i.issue, COUNT(*) n FROM row_issues i JOIN staging_rows s USING (row_id)
+                      WHERE s.batch_id = ? AND i.severity = 'rejected' GROUP BY i.issue"""), key=lambda r: r["issue"])
+    warn = sorted(q("""SELECT i.issue, COUNT(*) n FROM row_issues i JOIN staging_rows s USING (row_id)
+                       WHERE s.batch_id = ? AND i.severity = 'warning' GROUP BY i.issue"""),
+                  key=lambda r: (r["n"], r["issue"]), reverse=True)
     accounts = q("""SELECT COUNT(DISTINCT x.account_id) FROM account_sources x JOIN staging_rows s USING (row_id)
                     WHERE s.batch_id = ?""")[0][0]
     creators = q("""SELECT COUNT(DISTINCT ca.creator_id) FROM creator_accounts ca JOIN account_sources x
@@ -158,6 +169,9 @@ def _import(ctx: Ctx, do) -> dict:
     with _lock(ctx.org_id):
         conn = org_conn(ctx.org_id)
         try:
+            if getattr(conn, "is_postgres", False):
+                # the thread lock only covers this server; serverless runs many - hold a DB lock until commit
+                conn.execute("SELECT pg_advisory_xact_lock(?)", (ctx.org_id,))
             res = do(conn)
             if not res["skipped"]:
                 normalise.run(conn)

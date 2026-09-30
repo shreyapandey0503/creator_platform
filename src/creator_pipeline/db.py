@@ -17,7 +17,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
-from .config import DB_PATH
+from .config import DATABASE_URL, DB_PATH
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS import_batches (
@@ -166,6 +166,12 @@ CREATE TABLE IF NOT EXISTS api_calls (
     ok        INTEGER NOT NULL,
     note      TEXT
 );
+CREATE TABLE IF NOT EXISTS upload_files (          -- untouched uploads, when there's no disk to keep them on
+    file_sha256 TEXT PRIMARY KEY,
+    file_name   TEXT NOT NULL,
+    data        BLOB NOT NULL,
+    stored_at   TEXT NOT NULL
+);
 """
 
 
@@ -179,8 +185,12 @@ MIGRATIONS = {"accounts": {"region": "TEXT", "city_tier": "TEXT", "age": "INTEGE
                            "rate_video_inr": "INTEGER", "brands_json": "TEXT"}}
 
 
-def connect(path=None) -> sqlite3.Connection:
-    """Open (and create/migrate) a creator database. Default: the shared DB_PATH; the SaaS passes a per-company file."""
+def connect(path=None, schema: str | None = None):
+    """Open (and create/migrate) a creator database. Default: the shared DB_PATH; the SaaS passes a per-company
+    file, or - with DATABASE_URL set - a per-company Postgres schema."""
+    if schema:
+        from . import postgres
+        return postgres.connect(DATABASE_URL, schema, SCHEMA)  # tables are created with every column, no migrations
     path = path or DB_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, check_same_thread=False)
