@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Creator Atlas</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%E2%97%89%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Inter:wght@400;500;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/app.css" />
+  <link rel="stylesheet" href="/static/saas.css" />
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
+  <script src="/static/js/common.js" defer></script>
+  <script src="/static/js/creators.js" defer></script>
+  <script src="/static/js/campaigns.js" defer></script>
+  <script src="/static/js/app.js" defer></script>
+</head>
+<body class="in-app">
+  <div class="app-bg" aria-hidden="true"></div>
+
+  <aside class="side">
+    <a class="brand" href="#/dashboard"><span class="brand-mark">◉</span> Creator Atlas</a>
+    <nav class="side-nav">
+      <a href="#/dashboard" data-nav="dashboard"><i>◈</i> Dashboard</a>
+      <a href="#/creators" data-nav="creators"><i>✦</i> Creators</a>
+      <a href="#/campaigns" data-nav="campaigns"><i>◎</i> Campaigns</a>
+      <a href="#/billing" data-nav="billing"><i>₹</i> Billing</a>
+      <a href="#/settings" data-nav="settings"><i>⚙</i> Settings</a>
+    </nav>
+    <a class="btn side-cta" href="#/campaigns/new">+ New campaign</a>
+    <div class="side-foot">
+      <div class="me"><div class="avatar sm" id="meAvatar"></div><div><b id="meName"></b><span id="meOrg"></span></div></div>
+      <button class="linkish" id="logout">Log out</button>
+    </div>
+  </aside>
+  <button class="menu-btn" id="menuBtn" aria-label="Menu">☰</button>
+
+  <main class="main" id="view"></main>
+
+  <!-- side drawer (creator in campaign) and modal -->
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="drawer glass" id="drawer" hidden></aside>
+  <div class="modal-wrap" id="modal" hidden><div class="modal glass" id="modalBody"></div></div>
+
+  <div class="overlay" id="processing" hidden>
+    <div class="proc glass">
+      <div class="proc-orb"></div>
+      <h3>Reading your creators…</h3>
+      <ul id="procSteps">
+        <li>Keeping an untouched copy of the file</li>
+        <li>Cleaning names, handles &amp; links</li>
+        <li>Reading ₹ rates, lakhs &amp; followers</li>
+        <li>Merging duplicate creators</li>
+        <li>Clustering by niche, city, age &amp; price</li>
+      </ul>
+    </div>
+  </div>
+  <div class="toast" id="toast" hidden></div>
+
+  <!-- ===================================================== templates -->
+  <template id="tpl-creators">
+    <header class="page-head">
+      <div><p class="eyebrow">Creator library</p><h1>Your creator universe <span class="hi">ब्रह्मांड</span></h1></div>
+      <div class="head-actions">
+        <a class="btn ghost sm" href="/api/sample.csv" download>⬇ Sample CSV</a>
+        <label class="btn sm file-btn">⇪ Upload CSV<input type="file" id="fileTop" accept=".csv,text/csv" /></label>
+      </div>
+    </header>
+
+    <section id="emptyLib" class="empty-lib glass" hidden>
+      <div>
+        <h2>Start by uploading your creators</h2>
+        <p class="lede">Any CSV with creator names and profile links or handles. Followers, city, age, category,
+          languages and rate cards are picked up automatically.</p>
+      </div>
+      <label class="drop" id="drop">
+        <input type="file" id="file" accept=".csv,text/csv" />
+        <span class="drop-icon">⇪</span>
+        <span class="drop-title">Drop your creator CSV here</span>
+        <span class="drop-sub">or click to browse</span>
+      </label>
+      <div class="sample-row">
+        <a class="link" href="/api/sample.csv" download>⬇ Download the sample CSV</a>
+        <span class="muted">600 fictional creators · messy on purpose</span>
+        <button class="btn ghost" id="useSample">Use the sample →</button>
+      </div>
+    </section>
+
+    <section id="receipt" hidden><div class="receipt glass" id="receiptBody"></div></section>
+
+    <section id="universe" hidden>
+      <div class="imports" id="imports"></div>
+      <p class="lede" id="uniLede"></p>
+      <div class="niche-grid" id="niches"></div>
+      <div class="uni-body">
+        <aside class="rail glass" id="rail">
+          <input class="search" id="q" placeholder="Search name, @handle, city, sub-niche…" />
+          <div id="facets"></div>
+        </aside>
+        <div class="uni-main">
+          <div class="active-bar" id="activeBar"></div>
+          <div class="stat-strip" id="statStrip"></div>
+          <div class="charts">
+            <div class="chart-card glass"><div class="chart-title">Niche → price per reel <span class="muted">· click a niche to zoom</span></div><div class="chart" id="sunburst"></div></div>
+            <div class="chart-card glass"><div class="chart-title">Reach vs engagement <span class="muted">· bubble = price per reel</span></div><div class="chart" id="scatter"></div></div>
+          </div>
+          <h3 class="sub-h">Smart segments <span class="muted">— clusters found by k-means on size, engagement, price &amp; age</span></h3>
+          <div class="segments" id="segments"></div>
+          <div class="grid-head">
+            <h3 class="sub-h" id="gridTitle">Creators</h3>
+            <select id="sort" class="select">
+              <option value="fit_value">Best value (₹ per view)</option>
+              <option value="er">Engagement vs peers</option>
+              <option value="followers">Most followers</option>
+              <option value="price_low">Lowest price</option>
+              <option value="price_high">Highest price</option>
+            </select>
+          </div>
+          <div class="cards" id="cards"></div>
+          <button class="btn ghost wide" id="more" hidden>Show more creators</button>
+        </div>
+      </div>
+    </section>
+  </template>
+
+  <template id="tpl-new-campaign">
+    <header class="page-head">
+      <div><p class="eyebrow">New campaign</p><h1>Campaign studio <span class="hi">अभियान</span></h1>
+        <p class="lede">Describe the campaign. We score every creator in your library for fit and pick the strongest pool your budget can buy — then save it as a campaign to track.</p></div>
+    </header>
+    <div class="presets" id="presets"></div>
+    <div class="studio">
+      <form class="brief glass" id="brief" autocomplete="off"></form>
+      <div class="results" id="results">
+        <div class="results-empty glass"><div class="empty-art">✦</div><p>Your matched creator pool will appear here.</p><p class="muted">Tip: start from a preset above, then tweak.</p></div>
+      </div>
+    </div>
+  </template>
+</body>
+</html>

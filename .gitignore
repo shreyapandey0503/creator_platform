@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+
+# Generated data (rebuild with scripts/run_pipeline.py). raw_data/ IS tracked.
+data/creators.db
+data/staging/*
+data/processed/*
+data/review/*
+data/enriched/*
+data/uploads/*
+!data/**/.gitkeep
+data/platform.db
+data/orgs/

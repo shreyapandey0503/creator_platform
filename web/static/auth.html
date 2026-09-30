@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Creator Atlas — Log in</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%E2%97%89%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Inter:wght@400;500;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/app.css" />
+  <link rel="stylesheet" href="/static/saas.css" />
+  <script src="/static/js/common.js" defer></script>
+  <script src="/static/js/auth.js" defer></script>
+</head>
+<body class="auth-page">
+  <div class="wall" id="wall" aria-hidden="true"></div>
+  <div class="wall-shade" aria-hidden="true"></div>
+  <a class="brand auth-brand" href="/"><span class="brand-mark">◉</span> Creator Atlas <span class="brand-hi">संसार</span></a>
+
+  <main class="auth-wrap">
+    <section class="auth-pitch">
+      <p class="eyebrow">Your creator workspace</p>
+      <h1>Clean data.<br /><span class="grad">Right creators.</span><br />Campaigns that report themselves.</h1>
+      <ul class="ticks">
+        <li>Private creator database for your company</li>
+        <li>Clusters by niche, city, age &amp; price</li>
+        <li>Budget-aware matching with reasons</li>
+        <li>Pay only per confirmed creator</li>
+      </ul>
+    </section>
+
+    <section class="auth-card glass">
+      <div class="seg-ctl auth-tabs">
+        <button type="button" data-tab="login">Log in</button>
+        <button type="button" data-tab="signup">Create account</button>
+      </div>
+
+      <form id="loginForm" class="auth-form" autocomplete="on">
+        <h2>Welcome back</h2>
+        <div class="field"><label for="le">Work email</label><input type="email" id="le" name="email" required autocomplete="email" /></div>
+        <div class="field"><label for="lp">Password</label><input type="password" id="lp" name="password" required autocomplete="current-password" /></div>
+        <p class="form-err" hidden></p>
+        <button class="btn wide" type="submit">Log in →</button>
+        <p class="muted small">New here? <a class="link" href="/signup" data-go="signup">Create your workspace</a></p>
+      </form>
+
+      <form id="signupForm" class="auth-form" autocomplete="on" hidden>
+        <h2>Create your workspace</h2>
+        <div class="row2">
+          <div class="field"><label for="sn">Full name</label><input type="text" id="sn" name="name" required minlength="2" autocomplete="name" /></div>
+          <div class="field"><label for="sj">Your role</label><select id="sj" name="job_title" required></select></div>
+        </div>
+        <div class="field"><label for="se">Work email</label><input type="email" id="se" name="email" required autocomplete="email" /></div>
+        <div class="field"><label for="sp">Password <span class="muted">(8+ characters)</span></label><input type="password" id="sp" name="password" required minlength="8" autocomplete="new-password" /></div>
+        <div class="field"><label for="sc">Company</label><input type="text" id="sc" name="company" required minlength="2" autocomplete="organization" /></div>
+        <div class="row2">
+          <div class="field"><label for="si">Industry</label><select id="si" name="industry"></select></div>
+          <div class="field"><label for="ss">Company size</label><select id="ss" name="company_size"></select></div>
+        </div>
+        <label class="check"><input type="checkbox" required /> I agree to the terms of service and privacy policy</label>
+        <p class="form-err" hidden></p>
+        <button class="btn wide" type="submit">Create workspace →</button>
+        <p class="muted small">Already have an account? <a class="link" href="/login" data-go="login">Log in</a></p>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

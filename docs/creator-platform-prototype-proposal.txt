@@ -1,0 +1,401 @@
+CREATOR INTELLIGENCE PLATFORM - PROTOTYPE PROPOSAL
+===================================================
+Prepared by: Shreya Pandey
+Date: 30 Sep 2026
+For: ARMEO (Arjoon Mehra) - technology partner application
+
+Goal: a small working prototype hosted on Vercel that shows the hardest part of
+the product working end to end: messy CSV in, clean deduplicated creator
+database out, enriched with live YouTube / Instagram stats, and used to run a
+campaign, including a "best creators for this brand" recommendation (demo case:
+a food brand).
+
+This is a prototype to demonstrate thinking and capability, not the final
+product. Everything is designed so it can grow into the real platform without
+a rewrite.
+
+
+---------------------------------------------------------------------------
+1. WHAT THE PROTOTYPE DOES (DEMO FLOW, ~10 MINUTES)
+---------------------------------------------------------------------------
+
+  Step 1  Upload a messy CSV (sample of ~2-5K Indian creators I generate:
+          duplicate rows, mixed URL formats, "Bombay"/"Mumbai", "food" vs
+          "Food & Cooking", follower counts like "1.2M" / "12,00,000").
+  Step 2  See the import report: rows read, rows rejected (and why), URLs
+          normalised, exact duplicates auto-merged, fuzzy duplicates queued.
+  Step 3  Review queue: side-by-side "are these the same creator?" cards with
+          Merge / Not a duplicate buttons. Nothing merges silently.
+  Step 4  Enrich: click "Refresh stats" -> live YouTube numbers pulled from
+          the API; Instagram numbers for business/creator accounts. Every
+          profile shows source + "last updated 3 days ago".
+  Step 5  Search & filter: platform, city, category, follower tier,
+          engagement rate, freshness.
+  Step 6  Create campaign: "Healthy snacks launch, Mumbai + Pune, budget
+          Rs 5L, 15-25 micro creators" -> ranked creator recommendations
+          with a plain-English "why" for each.
+  Step 7  Shortlist -> move creators through a pipeline -> share a
+          client link that hides internal fields (rates, notes, scores).
+
+
+---------------------------------------------------------------------------
+2. TECH STACK (ALL FITS VERCEL FREE / LOW TIERS FOR A PROTOTYPE)
+---------------------------------------------------------------------------
+
+  Frontend + API   Next.js (App Router, TypeScript) on Vercel
+  Database         Postgres (Neon via Vercel Marketplace, or Supabase)
+                   - pg_trgm extension for fuzzy name/handle matching
+                   - JSONB for raw rows and API payloads
+  Auth             Simple email login (Auth.js / Supabase Auth); roles:
+                   admin, internal, client
+  CSV parsing      PapaParse IN THE BROWSER, then send rows in chunks of
+                   ~1,000 to the API (Vercel functions have a ~4.5 MB request
+                   body limit and time limits, so no giant single upload)
+  Background jobs  Vercel Cron (daily trigger) + a "jobs" table that
+                   processes enrichment in small batches per invocation
+  ML / scoring     TypeScript scoring service in the app for the prototype;
+                   Python (scikit-learn / LightGBM) later when there is
+                   real campaign outcome data to train on
+  Category tagging Keyword rules + optional LLM classification of
+                   bio / recent video titles (e.g. a small, cheap Claude
+                   model) to tag "food", "street food", "recipes", "vegan"
+  UI               Tailwind + shadcn/ui tables, simple charts
+
+  Why this stack: one codebase, one deploy, Postgres does both the data
+  work and the fuzzy matching, and it scales to the real 50K+ dataset.
+
+
+---------------------------------------------------------------------------
+3. DATA MODEL (THE CORE OF THE WHOLE PRODUCT)
+---------------------------------------------------------------------------
+
+  import_batches      one row per uploaded file (name, uploaded_by, time,
+                      row counts). The file itself is kept untouched.
+  staging_rows        every raw CSV row as JSONB + batch_id + row number +
+                      parse errors. Never edited.
+  creators            the PERSON: canonical name, city, state, language(s),
+                      categories, gender (if given), contact, tier
+  platform_accounts   one per platform presence: platform (youtube /
+                      instagram), platform_id (UC... channel ID / IG user
+                      id), handle, url, verified_exists, creator_id
+  stat_snapshots      account_id, fetched_at, source (youtube_api /
+                      ig_business_discovery / provider_x / csv_import),
+                      followers, avg_views, engagement_rate, media_count,
+                      raw_payload JSONB. APPEND-ONLY -> gives history.
+  source_links        staging_row -> creator mapping (lineage: "this profile
+                      came from rows 812 and 4031 of file X")
+  dedupe_candidates   pair of creators, match score, reasons, status
+                      (pending / merged / rejected), reviewed_by, time
+  merge_log           every merge, reversible
+  campaigns           brand, brief, category, target cities, budget,
+                      dates, KPIs, status
+  campaign_creators   creator in campaign + stage (shortlisted ->
+                      contacted -> negotiating -> confirmed -> content live
+                      -> paid), agreed rate, deliverables, notes
+  campaign_content    post/video URLs delivered -> tracked with snapshots
+  field_visibility    which fields are internal vs client-visible, per
+                      role / per campaign share link
+
+  Key idea: one creator (person) -> many platform accounts -> many
+  timestamped snapshots. Nothing is overwritten, so "historical data" and
+  "how fresh is this number" come for free.
+
+
+---------------------------------------------------------------------------
+4. NORMALISATION (WHAT "CLEANING" ACTUALLY MEANS)
+---------------------------------------------------------------------------
+
+  URLs -> canonical platform identity
+    YouTube inputs seen in the wild:
+      youtube.com/channel/UCxxxx       -> already the channel ID (best)
+      youtube.com/@handle              -> resolve via API (forHandle)
+      youtube.com/user/oldname         -> resolve via API (forUsername)
+      youtube.com/c/customname         -> no direct API lookup; fallback:
+                                          fetch page / search (expensive),
+                                          or flag for manual review
+      youtu.be/..., m.youtube.com, ?si=, ?feature= params -> stripped
+    Instagram inputs:
+      instagram.com/handle/?igsh=..., /reels/, /p/, uppercase, "@handle",
+      bare "handle" -> lowercase handle, params stripped
+
+  Numbers: "1.2M", "12,00,000" (Indian grouping), "45k", "1.2 lakh" ->
+           integers. Store the CSV value as a snapshot with source =
+           csv_import, so it can later be compared with the API value.
+  Names:   trim, collapse spaces, strip emojis for matching (keep the
+           display name as-is), remove "Official", "Vlogs" suffixes for
+           the matching key only.
+  Cities:  lookup table of aliases -> canonical (Bombay -> Mumbai,
+           Bangalore -> Bengaluru, Gurgaon -> Gurugram, Calcutta ->
+           Kolkata, "Delhi NCR" -> Delhi + region NCR), plus state.
+  Categories: controlled list (Food, Travel, Beauty, Fashion, Tech,
+           Finance, Fitness, Comedy, Parenting, Gaming, Education...) with
+           a synonym map ("cooking", "recipes", "foodie" -> Food).
+  Every row gets a quality flag list (missing city, unresolvable URL, etc.)
+
+
+---------------------------------------------------------------------------
+5. DEDUPLICATION
+---------------------------------------------------------------------------
+
+  Pass 1 - exact: same platform + platform_id (or same normalised handle
+           before IDs are resolved) -> auto-merge, logged.
+  Pass 2 - fuzzy: candidates generated with Postgres trigram similarity on
+           the name key and the handle, blocked by platform/city to keep it
+           fast. Score = weighted mix of name similarity, handle similarity,
+           same city, follower count within ~10%, same category.
+             score >= 0.92  -> suggested merge (still shown for one click)
+             0.75 - 0.92    -> review queue
+             < 0.75         -> ignored
+  Review UI shows both records side by side with the reasons
+  ("names 88% similar, same city, followers within 4%").
+  Merges are reversible via merge_log.
+  Cross-platform linking (same person on YT and IG) is also a review-queue
+  suggestion, never automatic.
+
+
+---------------------------------------------------------------------------
+6. YOUTUBE DATA API v3 - HOW IT WORKS AND WHAT IT COSTS
+---------------------------------------------------------------------------
+
+  COST: FREE. There is no per-call charge. You get a daily QUOTA of
+  10,000 "units" per Google Cloud project (resets midnight Pacific time).
+  You can request a higher quota through Google's quota extension /
+  compliance audit form - also free, but takes review time.
+
+  Setup:
+    1. Google Cloud Console -> new project
+    2. APIs & Services -> enable "YouTube Data API v3"
+    3. Credentials -> create API key (restrict it to this API)
+    Public data needs only the API key, no OAuth.
+
+  The calls we need, and their quota cost:
+    channels.list        1 unit per call, up to 50 channel IDs per call
+      part=snippet,statistics,contentDetails
+      ?id=UC1,UC2,...UC50     -> name, description, country,
+                                 subscriberCount, viewCount, videoCount,
+                                 uploads playlist ID
+      ?forHandle=@handle      -> resolves an @handle (1 channel per call)
+      ?forUsername=oldname    -> resolves legacy /user/ URLs
+    playlistItems.list   1 unit  -> latest videos from the uploads playlist
+    videos.list          1 unit per call, up to 50 video IDs
+                           -> views, likes, comments, duration, publish date
+    search.list          100 units (!)  -> AVOID; only for /c/ fallbacks
+
+  Example: base-price 50,000 creators
+    channel stats, 50 per call    ->  1,000 calls ->  1,000 units
+    handle resolution (worst case, one call each) -> up to 50,000 units
+      (a one-time cost, and most CSVs mix IDs and handles)
+    last ~10 videos per channel   ->  1 playlistItems + share of
+                                      videos.list  -> ~1.2 units/channel
+                                   -> ~60,000 units
+  So: the one-time full enrichment of 50K takes about 5-11 days on the free
+  quota (or 1 day after a quota increase). Weekly refresh of, say, 5,000
+  active creators is ~6,000 units -> fits in one day's free quota.
+  For the prototype (a few thousand creators) it is well within the free
+  limit.
+
+  What we can compute from it: subscribers, avg views of last N videos,
+  engagement rate = (likes + comments) / views, upload frequency, views
+  per subscriber, growth (by comparing snapshots over time).
+
+  Caveats:
+    - subscriberCount is rounded publicly (3 significant figures) and can
+      be hidden by the creator (hiddenSubscriberCount = true).
+    - No audience demographics (age/gender/city) from the public API -
+      that needs the creator to authorise via the YouTube Analytics API
+      (OAuth), which is a later-phase "creator connect" feature.
+    - YouTube API Terms of Service: data refresh / storage rules apply
+      (stored API data should be kept current - our scheduled refresh is
+      aligned with this).
+
+
+---------------------------------------------------------------------------
+7. INSTAGRAM - THE HARD PART (OPTIONS AND COSTS)
+---------------------------------------------------------------------------
+
+  Reality: Meta does not offer an open "look up any Instagram profile"
+  API. There are three legitimate routes:
+
+  A) Instagram Graph API - Business Discovery (FREE, limited)
+     - We create our own Instagram Professional account linked to a
+       Facebook Page, and a Meta developer app.
+     - Using our token we can query OTHER business/creator accounts by
+       username: followers_count, follows_count, media_count, bio, and
+       recent media with like_count and comments_count.
+     - Limits: only works for Business/Creator (professional) accounts,
+       NOT personal accounts; like counts can be hidden; rate limited
+       (roughly a couple of hundred calls per hour per token - fine for
+       a prototype and for refreshing a few thousand "active" creators,
+       too slow alone for 50K+ at high frequency).
+     - Needs Meta App Review (with business verification) to go beyond
+       test/development mode. Plan 1-3 weeks for this.
+     - No reach, impressions, or audience demographics for other accounts.
+
+  B) Creator-authorised Instagram API (FREE, deepest data)
+     - Creator clicks "Connect Instagram" (OAuth, Instagram Login).
+     - We then get their real insights: reach, impressions, story
+       metrics, audience city/age/gender.
+     - Best for creators signed to campaigns (and very valuable for
+       brand reports: "audience is 62% Mumbai/Pune"). Can't be used for
+       the cold 50K database.
+     - Note: the old Instagram Basic Display API was shut down in Dec
+       2024; this is its replacement.
+
+  C) Licensed third-party data provider (PAID, broad coverage)
+     - Companies that already track millions of profiles and sell API
+       access: e.g. Modash, HypeAuditor, Phyllo, Influencity,
+       Qoruz / Winkl (India-focused). Coverage of Indian micro creators
+       varies - worth testing each on a sample of the real 50K.
+     - Typical pricing: subscription plans from a few hundred USD/month
+       for small volumes, up to a few thousand USD/month for bulk API
+       access; some price per profile lookup / credit. MUST get quotes -
+       this is a real recurring cost for ARMEO to budget.
+     - Usually gives estimated audience demographics, fake follower %,
+       engagement benchmarks - things A cannot.
+
+  NOT recommended: scraping Instagram directly or via scraper
+  marketplaces - cheap, but against Instagram's terms, breaks often,
+  and is a legal/brand risk for a client-facing product.
+
+  Recommendation:
+    Prototype  -> A (Business Discovery) on a sample + CSV values as the
+                  fallback snapshot, clearly labelled with source.
+    Production -> A for refreshing known professional accounts, one
+                  licensed provider (C) for bulk coverage and demographics,
+                  B for creators in active campaigns.
+
+  Cost summary
+    YouTube Data API          Rs 0 (free quota; quota increase is free)
+    IG Business Discovery     Rs 0 (needs Meta app review)
+    IG creator-authorised     Rs 0
+    Third-party IG provider   ~USD few hundred - few thousand / month
+                              (the only meaningful data cost)
+    Vercel + Postgres         Free tier for prototype; ~USD 20-50/month
+                              at production start (Vercel Pro + DB)
+    LLM category tagging      small one-time cost for 50K bios with a
+                              small model; optional
+
+
+---------------------------------------------------------------------------
+8. CAMPAIGN MANAGEMENT (PROTOTYPE SCOPE)
+---------------------------------------------------------------------------
+
+  Campaign
+    brand, product, brief, category (e.g. Food > Healthy snacks),
+    target cities / languages, budget, creator count, start/end dates,
+    deliverables (1 reel + 2 stories / 1 YouTube integration), KPIs
+    (views, engagement, CPV).
+
+  Creator pipeline (kanban board)
+    Recommended -> Shortlisted -> Contacted -> Negotiating ->
+    Confirmed -> Content submitted -> Live -> Paid
+    Each card: agreed rate, deliverables, due dates, notes (internal).
+
+  Performance tracking
+    When content goes live, paste the post/video URL -> the system
+    snapshots its views/likes/comments on day 1, 3, 7, 30 -> campaign
+    totals, CPV (cost per view), CPE (cost per engagement), vs. estimate.
+
+  Client view
+    Shareable link / client login showing shortlisted creators and live
+    results. Internal fields (rates paid, margins, internal score,
+    notes) are hidden by the field_visibility rules, enforced in the API
+    (not just hidden in the UI).
+
+  Metric definitions page
+    Every metric (engagement rate, avg views, CPV...) defined once and
+    reused everywhere, so numbers in the admin panel and the client report
+    always match.
+
+
+---------------------------------------------------------------------------
+9. "WHICH CREATORS SUIT THIS FOOD BRAND?" - THE ML PIECE
+---------------------------------------------------------------------------
+
+  Honest framing: on day one there is no history of which creators
+  delivered good campaign results, so we can't train a true predictive
+  model yet. The right approach is in two stages:
+
+  Stage 1 (prototype): transparent scoring model
+    For a campaign brief, each creator gets a Fit Score (0-100):
+
+      Relevance (35%)   how "food" is this creator?
+                        - category tags
+                        - text similarity between the brief ("healthy
+                          snacks, fitness-conscious, Mumbai") and the
+                          creator's bio + recent video/post titles
+                          (TF-IDF, or embeddings for better accuracy)
+                        - share of recent content that is food-related
+      Audience fit (20%) city/state match to target cities, language
+                        match (Hindi, Marathi, Tamil...), creator's
+                        country = IN
+      Performance (25%) engagement rate compared with creators of the SAME
+                        follower tier (a 3% ER is great at 1M, average at
+                        10K), avg views per follower, consistency
+      Activity (10%)    posts in last 30 days, recency, growth trend
+                        from snapshots
+      Value (10%)       expected views per rupee (if rate known),
+                        penalties for stale data / suspicious spikes
+
+    Output: ranked list + a "why" line per creator, e.g.
+      "Strong food relevance (82% of last 20 videos are recipes), Pune
+       based, ER 5.1% vs 2.3% median for 50-100K creators."
+    Weights are editable by the internal team -> they learn to trust it.
+
+  Stage 2 (after a few campaigns): learned model
+    Every campaign produces labels: actual views, engagement, CPV, and
+    whether the team/client rated the creator well. Train a small model
+    (logistic regression / gradient boosting, e.g. LightGBM) on the
+    same features to predict "will this creator beat the campaign's
+    target CPV?" and later a learning-to-rank model. The Stage 1 score
+    becomes one of its features. This is where the platform gets a real
+    data moat: ARMEO's own campaign history.
+
+  Also useful quickly:
+    - "Similar creators" (nearest neighbours on content embeddings +
+      stats) -> "find more like this one".
+    - Anomaly flags: sudden follower jumps with flat engagement (possible
+      bought followers).
+
+
+---------------------------------------------------------------------------
+10. PROTOTYPE PLAN AND TIMELINE (~2-3 WEEKS PART-TIME)
+---------------------------------------------------------------------------
+
+  Week 1   Data layer
+           - Next.js + Postgres on Vercel, schema, sample messy CSV
+           - Upload -> staging -> normalise -> exact + fuzzy dedupe
+           - Import report + review queue UI
+  Week 2   Enrichment + search
+           - YouTube API integration (resolve handles, stats, recent
+             videos), snapshot table, source/freshness badges
+           - Instagram Business Discovery for a sample (or clearly
+             marked CSV/mock values if Meta app review is pending)
+           - Search / filters, creator profile page with history chart
+  Week 3   Campaigns + scoring
+           - Campaign brief -> Fit Score ranking with explanations
+             (food brand demo)
+           - Pipeline board, content tracking, client share link with
+             hidden internal fields
+           - Short Loom walkthrough + one-page architecture note
+
+  Phase after the prototype (the real build, for discussion with ARMEO)
+    - Full 50K import on their real data, provider evaluation for IG
+    - Tiered scheduled refresh (weekly active / monthly rest)
+    - Roles & permissions, multi-client workspaces
+    - Creator "connect your account" onboarding for deep insights
+    - Learned ranking model once campaign outcomes exist
+
+
+---------------------------------------------------------------------------
+11. RISKS / OPEN QUESTIONS FOR ARMEO
+---------------------------------------------------------------------------
+
+  - Format and columns of the existing database (CSV/Excel? URLs or bare
+    handles? phone/email present -> data privacy handling under India's
+    DPDP Act, 2023).
+  - Budget appetite for a paid Instagram data provider.
+  - Is internal scoring ARMEO's own logic, or should we propose it?
+  - Meta app review needs a registered business + privacy policy URL;
+    ARMEO's entity would be the app owner.
+  - Commercial/rate data is sensitive: internal-only by default.

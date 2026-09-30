@@ -1,0 +1,151 @@
+row_number,expected_account_id,mess
+1,youtube:UCP6uH_XlsxrXwZQ4DlqbqPg,clean copy of an existing account
+2,youtube:UCX8pnu3DYUnx8qy8V_c6oHg,clean copy of an existing account
+3,,bare @handle and no platform -> must be rejected (platform unknown)
+4,instagram:kajol,clean copy of an existing account
+5,instagram:mohanshakti,clean copy of an existing account
+6,instagram:m___c___stan,duplicate row with a name typo / different formatting
+7,youtube:UCVmEbEQUGXHVm-O9pqa3JWg,duplicate row with a name typo / different formatting
+8,instagram:virat.kohli,clean copy of an existing account
+9,instagram:m___c___stan,clean copy of an existing account
+10,,no link at all -> rejected
+11,instagram:aliaabhatt,clean copy of an existing account
+12,instagram:sushantsinghrajput,clean copy of an existing account
+13,instagram:narendramodi,clean copy of an existing account
+14,youtube:UCOsyDsO5tIt-VZ1iwjdQmew,clean copy of an existing account
+15,youtube:UCyoXW-Dse7fURq30EWl_CUA,clean copy of an existing account
+16,instagram:gima_ashi,clean copy of an existing account
+17,instagram:jannatzubair29,clean copy of an existing account
+18,youtube:UC783dnzJqf2ghHp_pFLYbGA,clean copy of an existing account
+19,instagram:bad_numbers_demo,"kept, followers flagged unparseable"
+20,instagram:riteishd,clean copy of an existing account
+21,youtube:UCL3IoeeHKzWMxZxhmnmETjw,duplicate row with a name typo / different formatting
+22,youtube:UCJZ5gFXzSZ9i-R1HEnS8U_A,clean copy of an existing account
+23,instagram:tamannaahspeaks,clean copy of an existing account
+24,youtube:UCtW7qWjpCZ8zps-Cf2NF26w,clean copy of an existing account
+25,instagram:hasnaink07,duplicate row with a name typo / different formatting
+26,youtube:UCpCWa9f5_J3PqY-_Lg-_QfQ,clean copy of an existing account
+27,youtube:UCvEAgG7WzPZnZkf9iOV_YCg,clean copy of an existing account
+28,youtube:UCUPD0jQo-EP0B1Nf4uzeIMA,clean copy of an existing account
+29,youtube:UCJeeXUtsKBj89Ra1nszP4JQ,clean copy of an existing account
+30,instagram:aslisona,clean copy of an existing account
+31,youtube:UCpN-WGQgGsOrXm7nHXDdTDA,clean copy of an existing account
+32,,"video URL, not a channel -> rejected"
+33,youtube:UCJg19noZp7-BYIGvypu_cow,clean copy of an existing account
+34,instagram:keerthysureshofficial,clean copy of an existing account
+35,instagram:surya_14kumar,clean copy of an existing account
+36,instagram:klrahul,clean copy of an existing account
+37,youtube:UCuN4A3GCUq5-0wJDSiJoxRQ,clean copy of an existing account
+38,instagram:armaanmalik,clean copy of an existing account
+39,youtube:UCcvNYxWXR_5TjVK7cSCdW-g,clean copy of an existing account
+40,instagram:mr_faisu_07,clean copy of an existing account
+41,instagram:yamigautam,clean copy of an existing account
+42,instagram:akshaykumar,clean copy of an existing account
+43,instagram:beingsalmankhan,clean copy of an existing account
+44,youtube:UCNzmmbXIbMzlqE8nD1PBXfg,clean copy of an existing account
+45,youtube:UCl_Ksy6Yi1b4eEZ46FInb_w,clean copy of an existing account
+46,youtube:UC5c9VlYTSvBSCaoMu_GI6gQ,clean copy of an existing account
+47,instagram:deepikapadukone,clean copy of an existing account
+48,instagram:thejohnabraham,clean copy of an existing account
+49,youtube:UC6-F5tO8uklgE9Zy8IvbdFw,clean copy of an existing account
+50,youtube:UCJZ5gFXzSZ9i-R1HEnS8U_A,duplicate row with a name typo / different formatting
+51,instagram:akshaykumar,duplicate row with a name typo / different formatting
+52,youtube:UCt4t-jeY85JegMlZ-E5UWtA,clean copy of an existing account
+53,youtube:UCxJcrDUc8awRSLzLbnIiAmQ,clean copy of an existing account
+54,youtube:UCHvoq_rGmOKJKGId1nD1V4Q,clean copy of an existing account
+55,instagram:thedeverakonda,duplicate row with a name typo / different formatting
+56,instagram:yamigautam,duplicate row with a name typo / different formatting
+57,youtube:UCL3IoeeHKzWMxZxhmnmETjw,clean copy of an existing account
+58,youtube:UCRWFSbif-RFENbBrSiez1DA,duplicate row with a name typo / different formatting
+59,youtube:UCq-Fj5jknLsUf-MWSy4_brA,clean copy of an existing account
+60,instagram:sahilkhan,duplicate row with a name typo / different formatting
+61,instagram:sureshraina3,clean copy of an existing account
+62,youtube:UCYauDsl-rswjQGpA0_-Z9Pw,clean copy of an existing account
+63,instagram:sidmalhotra,clean copy of an existing account
+64,instagram:urstrulymahesh,clean copy of an existing account
+65,youtube:UCC9Iz-AebxsyVF4iZagOtwA,duplicate row with a name typo / different formatting
+66,youtube:UCPMqs8vxEwbie26nFA3ykAw,clean copy of an existing account
+67,instagram:zareenkhan,clean copy of an existing account
+68,instagram:ayushmannk,duplicate row with a name typo / different formatting
+69,instagram:ranveersingh,duplicate row with a name typo / different formatting
+70,instagram:carryminati,duplicate row with a name typo / different formatting
+71,instagram:theshilpashetty,duplicate row with a name typo / different formatting
+72,instagram:rivarora_,clean copy of an existing account
+73,instagram:ranveersingh,clean copy of an existing account
+74,youtube:UCpN-WGQgGsOrXm7nHXDdTDA,duplicate row with a name typo / different formatting
+75,instagram:narendramodi,duplicate row with a name typo / different formatting
+76,youtube:UCCyKsYaRi62axS-kasXW7wA,clean copy of an existing account
+77,youtube:UCjBwQ6M9QyCgO5Pp-TQRFUA,clean copy of an existing account
+78,instagram:instantbollywood,clean copy of an existing account
+79,instagram:alluarjunonline,clean copy of an existing account
+80,youtube:UCbTLwN10NoCU4WDzLf1JMOA,clean copy of an existing account
+81,,bare @handle and no platform -> must be rejected (platform unknown)
+82,youtube:UCcryiZdagSR9M-Oii_Y4OfQ,clean copy of an existing account
+83,instagram:thedeverakonda,clean copy of an existing account
+84,instagram:theshilpashetty,clean copy of an existing account
+85,instagram:shrutzhaasan,clean copy of an existing account
+86,youtube:UC5c9VlYTSvBSCaoMu_GI6gQ,duplicate row with a name typo / different formatting
+87,instagram:alwaysramcharan,duplicate row with a name typo / different formatting
+88,instagram:carryminati,clean copy of an existing account
+89,instagram:diljitdosanjh,clean copy of an existing account
+90,youtube:UCC9Iz-AebxsyVF4iZagOtwA,clean copy of an existing account
+91,youtube:UCLtNvbkqea8wN_kGtfgx_Mw,clean copy of an existing account
+92,youtube:UCuN4A3GCUq5-0wJDSiJoxRQ,duplicate row with a name typo / different formatting
+93,youtube:UCiBigY9XM-HaOxUc269ympg,clean copy of an existing account
+94,youtube:UCOhHO2ICt0ti9KAh-QHvttQ,duplicate row with a name typo / different formatting
+95,instagram:madhuridixitnene,clean copy of an existing account
+96,,"post URL, not a profile -> rejected"
+97,youtube:UCU_AsfgtKjwR4qaSwgsWn-w,clean copy of an existing account
+98,,bare @handle and no platform -> must be rejected (platform unknown)
+99,instagram:alwaysramcharan,clean copy of an existing account
+100,youtube:UC783dnzJqf2ghHp_pFLYbGA,duplicate row with a name typo / different formatting
+101,instagram:malaikaaroraofficial,clean copy of an existing account
+102,instagram:shehnaazgill,clean copy of an existing account
+103,instagram:ajaydevgn,clean copy of an existing account
+104,instagram:aslisona,duplicate row with a name typo / different formatting
+105,youtube:UCU_AsfgtKjwR4qaSwgsWn-w,duplicate row with a name typo / different formatting
+106,youtube:user:tseries,"kept, legacy /user/ URL queued for API resolution"
+107,youtube:UCRm96I5kmb_iGFofE5N691w,clean copy of an existing account
+108,instagram:hasnaink07,clean copy of an existing account
+109,youtube:UCIeNlITYK46VkR7yIuTL8GQ,clean copy of an existing account
+110,instagram:dishapatani,clean copy of an existing account
+111,instagram:stebinben,clean copy of an existing account
+112,youtube:UChXi_PlJkRMPYFQBOJ3MpxA,clean copy of an existing account
+113,youtube:UCvEAgG7WzPZnZkf9iOV_YCg,duplicate row with a name typo / different formatting
+114,instagram:hardikpandya93,clean copy of an existing account
+115,instagram:sureshraina3,duplicate row with a name typo / different formatting
+116,instagram:hegdepooja,clean copy of an existing account
+117,instagram:bachchan,clean copy of an existing account
+118,youtube:UCXOgAl4w-FQero1ERbGHpXQ,clean copy of an existing account
+119,youtube:UC3PYGKK29qJ0zu-eEthHK4g,clean copy of an existing account
+120,instagram:katrinakaif,clean copy of an existing account
+121,instagram:arjunkapoor,clean copy of an existing account
+122,youtube:@bhojpuriwave,clean copy of an existing account
+123,youtube:UC1ciY6kR3yj3kaKZ6R7ewAg,clean copy of an existing account
+124,youtube:UCBnxEdpoZwstJqC1yZpOjRA,clean copy of an existing account
+125,instagram:harbhajan3,duplicate row with a name typo / different formatting
+126,youtube:UCoy3dQzEdq1y2zMnT4pdj3Q,clean copy of an existing account
+127,youtube:UCFFbwnve3yF62-tVXkTyHqg,clean copy of an existing account
+128,,bare @handle and no platform -> must be rejected (platform unknown)
+129,instagram:harbhajan3,clean copy of an existing account
+130,youtube:UCPMqs8vxEwbie26nFA3ykAw,duplicate row with a name typo / different formatting
+131,youtube:UCJg19noZp7-BYIGvypu_cow,duplicate row with a name typo / different formatting
+132,youtube:UCw0ry7cLRUnq3Oaszlhgqfg,clean copy of an existing account
+133,youtube:UCn4rEMqKtwBQ6-oEwbd4PcA,clean copy of an existing account
+134,youtube:c:nishamadhulika,"kept, /c/ URL flagged (no cheap API lookup)"
+135,youtube:UCttspZesZIDEwwpVIgoZtWQ,clean copy of an existing account
+136,youtube:UCN8S4CqMRy6tVKVXvs7Bzeg,clean copy of an existing account
+137,instagram:ayushmannk,clean copy of an existing account
+138,instagram:bhuvan.bam22,clean copy of an existing account
+139,instagram:riteishd,duplicate row with a name typo / different formatting
+140,instagram:nita_shilimkar,clean copy of an existing account
+141,youtube:UCSiDGb0MnHFGjs4E2WKvShw,clean copy of an existing account
+142,youtube:UCgoxyzvouZM-tCgsYzrYtyg,clean copy of an existing account
+143,youtube:UCRWFSbif-RFENbBrSiez1DA,clean copy of an existing account
+144,youtube:UCJeeXUtsKBj89Ra1nszP4JQ,duplicate row with a name typo / different formatting
+145,youtube:UCVmEbEQUGXHVm-O9pqa3JWg,clean copy of an existing account
+146,youtube:@carryminati,clean copy of an existing account
+147,youtube:UCppHT7SZKKvar4Oc9J4oljQ,clean copy of an existing account
+148,youtube:UCOhHO2ICt0ti9KAh-QHvttQ,clean copy of an existing account
+149,instagram:hardikpandya93,duplicate row with a name typo / different formatting
+150,youtube:UCAH1Aw-mXgcB3t8uaqW4yTA,clean copy of an existing account
